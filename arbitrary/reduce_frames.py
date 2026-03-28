@@ -21,17 +21,17 @@ Requirements:
 """
 
 import argparse
-import os
 import sys
+from pathlib import Path
+
 import cv2
 import numpy as np
-from pathlib import Path
 from skimage.metrics import structural_similarity as ssim
-
 
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -39,20 +39,27 @@ def parse_args():
     )
     parser.add_argument("input", help="Path to the input .mp4 file")
     parser.add_argument(
-        "--output-dir", default=None,
-        help="Output folder (default: <input_stem>_frames/)"
+        "--output-dir",
+        default=None,
+        help="Output folder (default: <input_stem>_frames/)",
     )
     parser.add_argument(
-        "--drop-pct", type=float, default=30.0,
-        help="Percentage of frames to drop (default: 30)"
+        "--drop-pct",
+        type=float,
+        default=30.0,
+        help="Percentage of frames to drop (default: 30)",
     )
     parser.add_argument(
-        "--min-spacing", type=int, default=3,
-        help="Minimum number of frames between two dropped frames (default: 3)"
+        "--min-spacing",
+        type=int,
+        default=3,
+        help="Minimum number of frames between two dropped frames (default: 3)",
     )
     parser.add_argument(
-        "--jpg-quality", type=int, default=92,
-        help="JPEG output quality 1–100 (default: 92)"
+        "--jpg-quality",
+        type=int,
+        default=92,
+        help="JPEG output quality 1–100 (default: 92)",
     )
     return parser.parse_args()
 
@@ -60,6 +67,7 @@ def parse_args():
 # ---------------------------------------------------------------------------
 # Frame reading
 # ---------------------------------------------------------------------------
+
 
 def read_frames(video_path: str):
     """Read all frames from the video as grayscale numpy arrays."""
@@ -93,6 +101,7 @@ def read_frames(video_path: str):
 # SSIM-based difference scoring
 # ---------------------------------------------------------------------------
 
+
 def compute_ssim_scores(frames):
     """
     Compute per-frame SSIM score against the previous frame.
@@ -107,20 +116,24 @@ def compute_ssim_scores(frames):
     print(f"[INFO] Computing SSIM scores for {n - 1} frame pairs …")
 
     for i in range(1, n):
-        score, _ = ssim(frames[i - 1], frames[i], full=True)
-        scores[i] = score          # higher → more similar → less essential
+        score = ssim(frames[i - 1], frames[i], full=True)[0]
+
+        scores[i] = score  # higher → more similar → less essential
         if i % 200 == 0:
             print(f"  … scored {i}/{n - 1}")
 
-    print(f"[INFO] SSIM scoring complete. "
-          f"Min={scores[1:].min():.4f}, Max={scores[1:].max():.4f}, "
-          f"Mean={scores[1:].mean():.4f}")
+    print(
+        f"[INFO] SSIM scoring complete. "
+        f"Min={scores[1:].min():.4f}, Max={scores[1:].max():.4f}, "
+        f"Mean={scores[1:].mean():.4f}"
+    )
     return scores
 
 
 # ---------------------------------------------------------------------------
 # Frame selection with minimum-spacing enforcement
 # ---------------------------------------------------------------------------
+
 
 def select_frames_to_drop(scores, drop_pct: float, min_spacing: int):
     """
@@ -143,7 +156,6 @@ def select_frames_to_drop(scores, drop_pct: float, min_spacing: int):
     candidates.sort(key=lambda i: scores[i], reverse=True)
 
     dropped = set()
-    last_drop_at = {}   # tracks the most recent drop in each "neighbourhood"
 
     def too_close(idx):
         """True if idx is within min_spacing of any already-dropped frame."""
@@ -158,15 +170,18 @@ def select_frames_to_drop(scores, drop_pct: float, min_spacing: int):
         if not too_close(candidate):
             dropped.add(candidate)
 
-    print(f"[INFO] Target drops: {target_drops}  |  "
-          f"Actual drops (after spacing): {len(dropped)}  |  "
-          f"Retained: {n - len(dropped)}")
+    print(
+        f"[INFO] Target drops: {target_drops}  |  "
+        f"Actual drops (after spacing): {len(dropped)}  |  "
+        f"Retained: {n - len(dropped)}"
+    )
     return dropped
 
 
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
+
 
 def save_outputs(frames, dropped: set, output_dir: Path, jpg_quality: int):
     """Save retained frames as JPGs and write the removed-frames log."""
@@ -202,6 +217,7 @@ def save_outputs(frames, dropped: set, output_dir: Path, jpg_quality: int):
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     args = parse_args()
 
@@ -209,8 +225,11 @@ def main():
     if not input_path.is_file():
         sys.exit(f"[ERROR] File not found: {input_path}")
 
-    output_dir = Path(args.output_dir) if args.output_dir else \
-        input_path.parent / f"{input_path.stem}_frames"
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else input_path.parent / f"{input_path.stem}_frames"
+    )
 
     if not (0 < args.drop_pct < 100):
         sys.exit("[ERROR] --drop-pct must be between 0 and 100 (exclusive).")
